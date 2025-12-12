@@ -9,11 +9,13 @@ import Layout from '@/components/layout/Layout';
 import SeatGrid from '@/components/booking/SeatGrid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { useRealtimeSeats } from '@/hooks/useRealtimeSeats';
 import { Show, Seat } from '@/types';
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, Clock, Loader2, Ticket, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Loader2, Radio, Ticket, Users } from 'lucide-react';
 
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +31,24 @@ const Booking = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isBooking, setIsBooking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Handle realtime seat updates
+  const handleSeatUpdate = useCallback((updatedSeat: Seat) => {
+    setSeats((prev) =>
+      prev.map((seat) => (seat.id === updatedSeat.id ? updatedSeat : seat))
+    );
+    
+    // Remove from selection if the seat was booked by someone else
+    if (updatedSeat.is_booked) {
+      setSelectedSeats((prev) => prev.filter((id) => id !== updatedSeat.id));
+    }
+  }, []);
+
+  // Subscribe to realtime seat updates
+  useRealtimeSeats({
+    showId: id || '',
+    onSeatUpdate: handleSeatUpdate,
+  });
 
   const fetchShowAndSeats = useCallback(async () => {
     if (!id) return;
@@ -170,7 +190,13 @@ const Booking = () => {
             Back to Shows
           </Link>
 
-          <h1 className="text-3xl font-bold uppercase mb-2">{show.name}</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold uppercase">{show.name}</h1>
+            <Badge variant="outline" className="gap-1 animate-pulse">
+              <Radio className="h-3 w-3 text-chart-2" />
+              Live
+            </Badge>
+          </div>
           <div className="flex flex-wrap items-center gap-4 text-muted-foreground mb-8">
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />

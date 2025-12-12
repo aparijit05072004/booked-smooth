@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Show, ShowsContextType } from '@/types';
+import { useRealtimeShows } from '@/hooks/useRealtimeShows';
 
 const ShowsContext = createContext<ShowsContextType | undefined>(undefined);
 
@@ -39,6 +40,25 @@ export const ShowsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsLoading(false);
     }
   }, []);
+
+  // Handle realtime show updates
+  const handleShowUpdate = useCallback((updatedShow: Show) => {
+    setShows((prev) =>
+      prev.map((show) => (show.id === updatedShow.id ? updatedShow : show))
+    );
+  }, []);
+
+  const handleShowInsert = useCallback((newShow: Show) => {
+    setShows((prev) => [...prev, newShow].sort((a, b) => 
+      new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    ));
+  }, []);
+
+  // Subscribe to realtime updates
+  useRealtimeShows({
+    onShowUpdate: handleShowUpdate,
+    onShowInsert: handleShowInsert,
+  });
 
   useEffect(() => {
     fetchShows();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Seat } from '@/types';
 import { cn } from '@/lib/utils';
 import { usePinchZoom } from '@/hooks/usePinchZoom';
@@ -11,6 +11,97 @@ interface SeatGridProps {
   onSeatToggle: (seatId: string) => void;
   disabled?: boolean;
 }
+
+interface MiniMapProps {
+  seats: Seat[];
+  selectedSeats: string[];
+  columns: number;
+  scale: number;
+  position: { x: number; y: number };
+  containerSize: { width: number; height: number };
+  onNavigate: (x: number, y: number) => void;
+}
+
+const MiniMap: React.FC<MiniMapProps> = ({
+  seats,
+  selectedSeats,
+  columns,
+  scale,
+  position,
+  containerSize,
+  onNavigate,
+}) => {
+  const miniMapRef = useRef<HTMLDivElement>(null);
+  const rows = Math.ceil(seats.length / columns);
+  
+  // Calculate viewport rectangle
+  const viewportWidth = containerSize.width > 0 ? (100 / scale) : 100;
+  const viewportHeight = containerSize.height > 0 ? (100 / scale) : 100;
+  
+  // Calculate position as percentage (inverted because position is negative when panning)
+  const viewportX = 50 - (position.x / (containerSize.width || 1)) * 100 / scale - viewportWidth / 2;
+  const viewportY = 50 - (position.y / (containerSize.height || 1)) * 100 / scale - viewportHeight / 2;
+
+  const handleMiniMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!miniMapRef.current) return;
+    const rect = miniMapRef.current.getBoundingClientRect();
+    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    // Convert click position to pan coordinates
+    const newX = ((50 - clickX) / 100) * containerSize.width * scale;
+    const newY = ((50 - clickY) / 100) * containerSize.height * scale;
+    onNavigate(newX, newY);
+  };
+
+  return (
+    <div className="absolute bottom-2 right-2 z-10 border-2 border-foreground bg-background/95 p-1 shadow-lg">
+      <div className="text-[8px] text-muted-foreground text-center mb-0.5 uppercase tracking-wider">
+        Mini Map
+      </div>
+      <div
+        ref={miniMapRef}
+        className="relative cursor-crosshair"
+        style={{ width: '100px', height: `${(rows / columns) * 100}px`, maxHeight: '80px' }}
+        onClick={handleMiniMapClick}
+      >
+        {/* Seat dots */}
+        <div
+          className="grid gap-px w-full h-full"
+          style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+        >
+          {seats
+            .sort((a, b) => a.seat_number - b.seat_number)
+            .map((seat) => {
+              const isSelected = selectedSeats.includes(seat.id);
+              return (
+                <div
+                  key={seat.id}
+                  className={cn(
+                    'w-full h-full min-w-[4px] min-h-[4px]',
+                    seat.is_booked && 'bg-muted-foreground/50',
+                    !seat.is_booked && !isSelected && 'bg-foreground/30',
+                    isSelected && 'bg-primary'
+                  )}
+                />
+              );
+            })}
+        </div>
+        
+        {/* Viewport indicator */}
+        <div
+          className="absolute border-2 border-primary bg-primary/20 pointer-events-none"
+          style={{
+            left: `${Math.max(0, Math.min(100 - viewportWidth, viewportX))}%`,
+            top: `${Math.max(0, Math.min(100 - viewportHeight, viewportY))}%`,
+            width: `${Math.min(100, viewportWidth)}%`,
+            height: `${Math.min(100, viewportHeight)}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+};
 
 const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle, disabled }) => {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -27,6 +118,7 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle,
     zoomOut,
     resetZoom,
     isDragging,
+    setPosition,
   } = usePinchZoom({ minScale: 0.5, maxScale: 3, initialScale: 1 });
 
   const getSeatStatus = (seat: Seat) => {
@@ -37,7 +129,6 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle,
 
   const handleSeatClick = useCallback(
     (seat: Seat, e: React.MouseEvent | React.TouchEvent) => {
-      // Prevent seat selection while dragging/panning
       if (isDragging) {
         e.preventDefault();
         return;
@@ -48,7 +139,6 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle,
     [disabled, onSeatToggle, isDragging]
   );
 
-  // Direct DOM manipulation for seat highlighting
   useEffect(() => {
     if (!gridRef.current) return;
 
@@ -71,22 +161,35 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle,
     };
   }, [selectedSeats]);
 
-  // Calculate grid columns based on seat count - responsive
   const seatCount = seats.length;
-  const getColumns = () => {
+  const columns = useMemo(() => {
     if (seatCount <= 20) return Math.min(5, seatCount);
     if (seatCount <= 40) return 8;
     return 10;
-  };
-  const columns = getColumns();
+  }, [seatCount]);
 
-  // Calculate optimal seat size for mobile
   const getSeatSize = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 640) {
       return 'w-8 h-8 text-[10px]';
     }
     return 'w-10 h-10 text-xs';
   };
+
+  const containerSize = useMemo(() => {
+    if (containerRef.current) {
+      return {
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+      };
+    }
+    return { width: 300, height: 200 };
+  }, [containerRef, scale]);
+
+  const handleMiniMapNavigate = useCallback((x: number, y: number) => {
+    setPosition({ x, y });
+  }, [setPosition]);
+
+  const showMiniMap = scale > 1.2;
 
   return (
     <div className="space-y-4">
@@ -168,7 +271,7 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle,
       {/* Seat grid with zoom/pan */}
       <div
         ref={containerRef}
-        className="overflow-hidden border-2 border-foreground bg-secondary/30 touch-none"
+        className="relative overflow-hidden border-2 border-foreground bg-secondary/30 touch-none"
         style={{ minHeight: '200px' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -228,6 +331,19 @@ const SeatGrid: React.FC<SeatGridProps> = ({ seats, selectedSeats, onSeatToggle,
               })}
           </div>
         </div>
+
+        {/* Mini Map - shows when zoomed in */}
+        {showMiniMap && (
+          <MiniMap
+            seats={seats}
+            selectedSeats={selectedSeats}
+            columns={columns}
+            scale={scale}
+            position={position}
+            containerSize={containerSize}
+            onNavigate={handleMiniMapNavigate}
+          />
+        )}
       </div>
 
       {/* Selected count for mobile */}

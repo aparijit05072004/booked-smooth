@@ -24,6 +24,7 @@ interface UsePinchZoomReturn {
   zoomOut: () => void;
   resetZoom: () => void;
   isDragging: boolean;
+  setPosition: React.Dispatch<React.SetStateAction<Position>>;
 }
 
 export const usePinchZoom = ({
@@ -152,5 +153,6 @@ export const usePinchZoom = ({
     zoomOut,
     resetZoom,
     isDragging,
+    setPosition,
   };
 };

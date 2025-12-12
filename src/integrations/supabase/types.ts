@@ -14,16 +14,156 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          seat_ids: string[]
+          show_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          seat_ids: string[]
+          show_id: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          seat_ids?: string[]
+          show_id?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          is_admin: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+          is_admin?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_admin?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      seats: {
+        Row: {
+          created_at: string
+          id: string
+          is_booked: boolean
+          seat_number: number
+          show_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_booked?: boolean
+          seat_number: number
+          show_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_booked?: boolean
+          seat_number?: number
+          show_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seats_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shows: {
+        Row: {
+          available_seats: number
+          created_at: string
+          id: string
+          name: string
+          start_time: string
+          total_seats: number
+          updated_at: string
+        }
+        Insert: {
+          available_seats: number
+          created_at?: string
+          id?: string
+          name: string
+          start_time: string
+          total_seats: number
+          updated_at?: string
+        }
+        Update: {
+          available_seats?: number
+          created_at?: string
+          id?: string
+          name?: string
+          start_time?: string
+          total_seats?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      book_seats: {
+        Args: { p_seat_ids: string[]; p_show_id: string; p_user_id: string }
+        Returns: {
+          booking_id: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }[]
+      }
+      create_show_with_seats: {
+        Args: { p_name: string; p_start_time: string; p_total_seats: number }
+        Returns: string
+      }
+      expire_pending_bookings: { Args: never; Returns: undefined }
     }
     Enums: {
-      [_ in never]: never
+      booking_status: "PENDING" | "CONFIRMED" | "FAILED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +290,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      booking_status: ["PENDING", "CONFIRMED", "FAILED"],
+    },
   },
 } as const
